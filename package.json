@@ -1,0 +1,17 @@
+{
+  "name": "bashtype",
+  "version": "1.0.0",
+  "description": "typescript to bash script compiler",
+  "main": "index.js",
+  "scripts": {
+    "c": "tsc src/index.ts --watch --outDir build",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@types/node": "^12.0.4",
+    "commander": "^2.20.0",
+    "typescript": "^3.4.5"
+  }
+}
