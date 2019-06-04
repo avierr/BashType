@@ -15,5 +15,7 @@ let a2 = a + ((2*3)+"c")
 console.log(a2)
 
 let strLitIdentifier = "abc"
+
+
 let a3 = a + ((2*3)+strLitIdentifier)
 console.log(a2)

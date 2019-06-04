@@ -5,6 +5,7 @@ import {
     BinaryExpression
 } from 'typescript';
 import { GlobalTable } from './GlobalTable';
+import { lookup } from 'dns';
 
 export class AssembledOutput{
     kind : SyntaxKind = null
@@ -21,6 +22,14 @@ export class AssembledOutput{
         this.children.push(assembledOutput);
     }
 
+    pop(){
+        this.children.pop()
+    }
+
+    flattenOutput(){
+        return AssembledOutput.flatten(this);
+    }
+
     static flatten(assembledOutput: AssembledOutput) :string{
         let output = assembledOutput.output;
         for(let i=0;i<assembledOutput.children.length;i++){
@@ -31,84 +40,118 @@ export class AssembledOutput{
     }
 }
 
+export enum SymbolType{ STRING="STRING",NUMBER="NUMBER" }
+
+export class SymbolTable{
+
+    parent : SymbolTable = null
+    table = {}
+
+    constructor(parent: SymbolTable){
+        this.parent = parent;
+    }
+
+    insert(varName: string, type : SymbolType){
+        if(varName==null){
+            throw new Error("varName is null");
+        }
+        this.table[varName] = type
+    }
+
+    lookup(varName: string){
+
+        if(this.table.hasOwnProperty(varName)){
+            return this.table[varName];
+        }else{
+            if(this.parent == null){
+                return null;
+            }else{
+                return this.parent.lookup(varName);
+            }
+        }
+    }
+}
+
 export class Assemble {
 
 
     SourceFile(nodes: Node[]): string {
         let output = "";
+        let symbolTable = new SymbolTable(null)
         for (let i = 0; i < nodes.length; i++) {
             let node = nodes[i];
             if (node.kind == SyntaxKind.SyntaxList) {
-                output+= AssembledOutput.flatten(this.SyntaxList(node));
+                output+= AssembledOutput.flatten(this.SyntaxList(symbolTable, node));
             } else if (node.kind == SyntaxKind.EndOfFileToken) {
+                console.log(symbolTable)
                 return output;
             } else {
-                this.unhandledToken(node)
+                this.unhandledToken(symbolTable, node)
             }
         }
     }
 
-    SyntaxList(node: Node) :AssembledOutput {
+    SyntaxList(symbolTable : SymbolTable, node: Node) :AssembledOutput {
         let output = new AssembledOutput(SyntaxKind.SyntaxList,"");
         let childNodes = node.getChildren();
         for (let i = 0; i < childNodes.length; i++) {
             let node = childNodes[i];
             if (node.kind == SyntaxKind.VariableStatement) {
-                output.push(new AssembledOutput(SyntaxKind.VariableStatement,this.VariableStatement(node)));
+                output.push(new AssembledOutput(SyntaxKind.VariableStatement,this.VariableStatement(symbolTable, node)));
             } else if (node.kind == SyntaxKind.ExpressionStatement) {
-                output.push(new AssembledOutput(SyntaxKind.ExpressionStatement,this.ExpressionStatement(node)))
+                output.push(new AssembledOutput(SyntaxKind.ExpressionStatement,this.ExpressionStatement(symbolTable, node)))
             } else if (node.kind == SyntaxKind.Identifier) {
-                output.push(new AssembledOutput(SyntaxKind.Identifier,this.Identifier(node)))
+                output.push(new AssembledOutput(SyntaxKind.Identifier,this.Identifier(symbolTable, node)))
             } else if (node.kind == SyntaxKind.StringLiteral) {
-                output.push(this.StringLiteral(node))
+                output.push(this.StringLiteral(symbolTable, node))
             }  else if (node.kind == SyntaxKind.FirstLiteralToken) {
-                output.push(new AssembledOutput(SyntaxKind.FirstLiteralToken,this.FirstLiteralToken(node)))
+                output.push(new AssembledOutput(SyntaxKind.FirstLiteralToken,this.FirstLiteralToken(symbolTable, node)))
             }  else if (node.kind == SyntaxKind.CommaToken) {
-                output.push(new AssembledOutput(SyntaxKind.CommaToken,this.CommaToken(node)))
+                output.push(new AssembledOutput(SyntaxKind.CommaToken,this.CommaToken(symbolTable, node)))
             }else if (node.kind == SyntaxKind.VariableDeclaration) {
-                output.push(new AssembledOutput(SyntaxKind.VariableDeclaration,this.VariableDeclaration(node)));
+                output.push(new AssembledOutput(SyntaxKind.VariableDeclaration,this.VariableDeclaration(symbolTable, node)));
             } else if (node.kind == SyntaxKind.EndOfFileToken) {
                 return output;
             } else {
-                this.unhandledToken(node)
+                this.unhandledToken(symbolTable, node)
             }
         }
         return output;
     }
 
-    Identifier(node: Node) :string {
+    Identifier(symbolTable : SymbolTable, node: Node) :string {
         return `${node.getText()}`
     }
 
-    StringLiteral(node: Node) :AssembledOutput {
+    StringLiteral(symbolTable : SymbolTable, node: Node) :AssembledOutput {
        return new AssembledOutput(SyntaxKind.StringLiteral,node.getText())
     }
 
-    FirstLiteralToken(node: Node) :string {
+    FirstLiteralToken(symbolTable : SymbolTable, node: Node) :string {
         return node.getText()
     }
 
-    CommaToken(node: Node) :string {
-        return this.noop(node);
+    CommaToken(symbolTable : SymbolTable, node: Node) :string {
+        return this.noop(symbolTable, node);
     }
 
-    ExpressionStatement(node: Node) :string {
+    ExpressionStatement(symbolTable : SymbolTable, node: Node) :string {
         let output="";
         let childNodes = node.getChildren();
         for (let i = 0; i < childNodes.length; i++) {
             let node = childNodes[i];
             if (node.kind == SyntaxKind.CallExpression) {
-                output+=this.CallExpression(node)
+                output+=this.CallExpression(symbolTable, node)
             }else if(node.kind == SyntaxKind.SemicolonToken){
                 output+=("\n");
             }else{
-                this.unhandledToken(node)
+                this.unhandledToken(symbolTable, node)
             }
         }
         return output;
     }
 
-    CallExpression(node: Node) :string {
+    CallExpression(symbolTable : SymbolTable, node: Node) :string {
         let output = "";
         let childNodes = node.getChildren();
         let fnc = null;
@@ -117,13 +160,13 @@ export class Assemble {
         for (let i = 0; i < childNodes.length; i++) {
             let node = childNodes[i];
             if(node.kind == SyntaxKind.PropertyAccessExpression){
-                fnc = this.PropertyAccessExpression(node);
+                fnc = this.PropertyAccessExpression(symbolTable, node);
             } else if(node.kind == SyntaxKind.OpenParenToken || node.kind == SyntaxKind.CloseParenToken){
-                output+=this.noop(node);
+                output+=this.noop(symbolTable, node);
             } else if(node.kind == SyntaxKind.SyntaxList){
-                syntaxList = this.SyntaxList(node);
+                syntaxList = this.SyntaxList(symbolTable, node);
             }else{
-                this.unhandledToken(node)
+                this.unhandledToken(symbolTable, node)
             }
         }
 
@@ -142,7 +185,7 @@ export class Assemble {
         return output;
     }
 
-    PropertyAccessExpression(node: Node) :any {
+    PropertyAccessExpression(symbolTable : SymbolTable, node: Node) :any {
         if(GlobalTable.exists(node.getText())){
             return GlobalTable.get(node.getText());
         }else{
@@ -151,72 +194,117 @@ export class Assemble {
     }
 
 
-    VariableStatement(node: Node) :string {
+    VariableStatement(symbolTable : SymbolTable, node: Node) :string {
         let output = "";
         let childNodes = node.getChildren();
         for (let i = 0; i < childNodes.length; i++) {
             let node = childNodes[i];
             if (node.kind == SyntaxKind.VariableDeclarationList) {
-                output+=this.VariableDeclarationList(node)
+                output+=this.VariableDeclarationList(symbolTable, node)
             } else if (node.kind == SyntaxKind.SemicolonToken) {
                 output+=("\n");
             } else {
-                this.unhandledToken(node)
+                this.unhandledToken(symbolTable, node)
             }
         }
         return output;
     }
 
-    VariableDeclaration(node: Node) :string {
+    VariableDeclaration(symbolTable : SymbolTable, node: Node) :string {
         let output = "";
         let childNodes = node.getChildren();
+        let identifier = null;
         for (let i = 0; i < childNodes.length; i++) {
             let node = childNodes[i];
             if (node.kind == SyntaxKind.Identifier) {
-                output+=this.Identifier(node)
+                identifier=this.Identifier(symbolTable, node)
+                symbolTable.insert(identifier, SymbolType.STRING)
+                output+=identifier;
             } else if (node.kind == SyntaxKind.ColonToken) {
-                output+=this.noop(node);
+                output+=this.noop(symbolTable, node);
             } else if (node.kind == SyntaxKind.NumberKeyword) {
-                output+=this.noop(node);
+                output+=this.noop(symbolTable, node);
+                symbolTable.insert(identifier, SymbolType.NUMBER)
+            } else if (node.kind == SyntaxKind.StringKeyword) {
+                output+=this.noop(symbolTable, node);
+                symbolTable.insert(identifier, SymbolType.STRING)
             } else if (node.kind == SyntaxKind.FirstAssignment) {
                 output+=(node.getText())
             } else if (node.kind == SyntaxKind.FirstLiteralToken) {
                 output+=(node.getText())
+                symbolTable.insert(identifier, SymbolType.NUMBER)
             } else if (node.kind == SyntaxKind.StringLiteral) {
-                output+=AssembledOutput.flatten(this.StringLiteral(node))
+                output+=AssembledOutput.flatten(this.StringLiteral(symbolTable, node))
+                symbolTable.insert(identifier, SymbolType.STRING)
             } else if (node.kind == SyntaxKind.BinaryExpression) {
-                output+=this.BinaryExpression(node)
+                let binExpOutput=this.BinaryExpression(symbolTable, node)
+                if(binExpOutput.isNumeric){
+                    symbolTable.insert(identifier, SymbolType.NUMBER)
+                }else{
+                    symbolTable.insert(identifier, SymbolType.STRING)
+                }
+                output+=binExpOutput.flattenOutput();
             } else if (node.kind == SyntaxKind.ParenthesizedExpression) {
-                output+=this.ParenthesizedExpression(node)
+                let parenExpOutput=this.ParenthesizedExpression(symbolTable, node)
+                if(parenExpOutput.isNumeric){
+                    symbolTable.insert(identifier, SymbolType.NUMBER)
+                }else{
+                    symbolTable.insert(identifier, SymbolType.STRING)
+                }
+                output+=parenExpOutput.flattenOutput();
             } else {
-                this.unhandledToken(node)
+                this.unhandledToken(symbolTable, node)
             }
         }
         output+=("\n")
         return output;
     }
 
-    ParenthesizedExpression(node: Node) :string {
-        let output = "";
+    ParenthesizedExpression(symbolTable : SymbolTable, node: Node) :AssembledOutput {
         
+        let assembledOutput = new AssembledOutput(SyntaxKind.ParenthesizedExpression,''); 
+        let binaryExpOut : AssembledOutput= null;        
         let childNodes = node.getChildren();
+        let openParen = null;
+        let closeParen = null;
         for (let i = 0; i < childNodes.length; i++) {
             let node = childNodes[i];
             if (node.kind == SyntaxKind.OpenParenToken) {
-                output+=("(")
+                openParen = (this.OpenParenToken(symbolTable,node))
             } else if (node.kind == SyntaxKind.CloseParenToken) {
-                output+=(")")
+               closeParen = (this.CloseParenToken(symbolTable,node))
             } else if (node.kind == SyntaxKind.BinaryExpression) {
-                output+=this.BinaryExpression(node);
+                binaryExpOut = this.BinaryExpression(symbolTable, node);
             } else {
-                this.unhandledToken(node)
+                this.unhandledToken(symbolTable, node)
             }
         }
-        return output;
+
+        assembledOutput.isNumeric = binaryExpOut.isNumeric;
+
+        if(binaryExpOut.isNumeric){
+            assembledOutput.push(openParen)
+            assembledOutput.push(binaryExpOut);
+            assembledOutput.push(closeParen);
+        }else{
+            //no parenthesis for string operations
+            assembledOutput.push(binaryExpOut);
+        }
+
+        return assembledOutput;
     }
 
-    BinaryExpression(node: Node) :string {
-        (node as BinaryExpression).operatorToken.kind
+    OpenParenToken(symbolTable : SymbolTable, node: Node) :AssembledOutput {
+       return new AssembledOutput(SyntaxKind.OpenParenToken,"(");
+    }
+
+    CloseParenToken(symbolTable : SymbolTable, node: Node) :AssembledOutput {
+        return new AssembledOutput(SyntaxKind.CloseParenToken,")");
+     }
+
+    BinaryExpression(symbolTable : SymbolTable, node: Node) :AssembledOutput {
+
+        let assembledOutput = new AssembledOutput(SyntaxKind.BinaryExpression,"");
         let operator = "";
         let operands=[]
         let hasStringLiteral = false;
@@ -224,7 +312,10 @@ export class Assemble {
         for (let i = 0; i < childNodes.length; i++) {
             let node = childNodes[i];
             if (node.kind == SyntaxKind.Identifier) {
-                operands.push("$"+this.Identifier(node))
+                if(symbolTable.lookup(node.getText())==SymbolType.STRING){
+                    hasStringLiteral = true;
+                }
+                operands.push("$"+this.Identifier(symbolTable, node))
             } else if (node.kind == SyntaxKind.FirstLiteralToken) {
                 operands.push(node.getText())
             }else if (node.kind == SyntaxKind.StringLiteral) {
@@ -236,9 +327,13 @@ export class Assemble {
                 || node.kind == SyntaxKind.SlashToken) {
                     operator = node.getText()
             } else if (node.kind == SyntaxKind.ParenthesizedExpression) {
-                operands.push(this.ParenthesizedExpression(node))
+                let parenOutput = this.ParenthesizedExpression(symbolTable, node)
+                if(!parenOutput.isNumeric){
+                    hasStringLiteral = true;
+                }
+                operands.push(parenOutput.flattenOutput())
             } else {
-                this.unhandledToken(node)
+                this.unhandledToken(symbolTable, node)
             }
         }
 
@@ -248,38 +343,42 @@ export class Assemble {
             operator=""
             openParen = ""
             closeParen = ""
+            assembledOutput.isNumeric = false;
 
         }else{
+            assembledOutput.isNumeric = true;
             operator=` ${operator} `;
         }
-        return openParen+operands[0]+operator+operands[1]+closeParen;
+        assembledOutput.output = openParen+operands[0]+operator+operands[1]+closeParen;
+
+        return assembledOutput;
     }
 
-    VariableDeclarationList(node: Node) :string {
+    VariableDeclarationList(symbolTable : SymbolTable, node: Node) :string {
         let output = "";
         let childNodes = node.getChildren();
         for (let i = 0; i < childNodes.length; i++) {
             let node = childNodes[i];
             if (node.kind == SyntaxKind.LetKeyword) {
-               output += this.LetKeyword(node)
+               output += this.LetKeyword(symbolTable, node)
             } else if (node.kind == SyntaxKind.SyntaxList) {
-                output += AssembledOutput.flatten(this.SyntaxList(node))
+                output += AssembledOutput.flatten(this.SyntaxList(symbolTable, node))
             } else {
-                this.unhandledToken(node)
+                this.unhandledToken(symbolTable, node)
             }
         }
         return output;
     }
 
-    LetKeyword(node: Node) :string {
-        return this.noop(node)
+    LetKeyword(symbolTable : SymbolTable, node: Node) :string {
+        return this.noop(symbolTable, node)
     }
 
-    unhandledToken(node: Node) :string {
+    unhandledToken(symbolTable : SymbolTable, node: Node) :string {
         throw new Error("Unhandled token type: " + this.d(node));
     }
 
-    noop(node: Node) :string {
+    noop(symbolTable : SymbolTable, node: Node) :string {
         console.debug("noop: " + this.d(node))
         return ""
     }
