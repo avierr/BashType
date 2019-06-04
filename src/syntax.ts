@@ -102,6 +102,8 @@ export class Assemble {
             let node = childNodes[i];
             if (node.kind == SyntaxKind.VariableStatement) {
                 output.push(new AssembledOutput(SyntaxKind.VariableStatement,this.VariableStatement(symbolTable, node)));
+            } else if (node.kind == SyntaxKind.IfStatement) {
+                output.push(this.IfStatement(symbolTable, node))
             } else if (node.kind == SyntaxKind.ExpressionStatement) {
                 output.push(new AssembledOutput(SyntaxKind.ExpressionStatement,this.ExpressionStatement(symbolTable, node)))
             } else if (node.kind == SyntaxKind.Identifier) {
@@ -142,6 +144,31 @@ export class Assemble {
 
     CommaToken(symbolTable : SymbolTable, node: Node) :string {
         return this.noop(symbolTable, node);
+    }
+
+    IfStatement(symbolTable : SymbolTable, node: Node) :AssembledOutput {
+        let assembledOutput = new AssembledOutput(SyntaxKind.ParenthesizedExpression,''); 
+        let childNodes = node.getChildren();
+        let openParen = null;
+        let closeParen = null;
+        let binaryExpOut = null;
+        for (let i = 0; i < childNodes.length; i++) {
+            let node = childNodes[i];
+            if (node.kind == SyntaxKind.IfKeyword) {
+                assembledOutput.push(this.IfKeyword(symbolTable,node))
+            } else if (node.kind == SyntaxKind.OpenParenToken) {
+                assembledOutput.push(this.OpenParenToken(symbolTable,node))
+            } else if (node.kind == SyntaxKind.CloseParenToken) {
+                assembledOutput.push(this.CloseParenToken(symbolTable,node))
+            } else if (node.kind == SyntaxKind.BinaryExpression) {
+                assembledOutput.push(this.BinaryExpression(symbolTable, node));
+            }
+        }
+        return assembledOutput;
+    }
+
+    IfKeyword(symbolTable : SymbolTable, node: Node) :AssembledOutput {
+        return new AssembledOutput(SyntaxKind.StringLiteral,node.getText()+" ")
     }
 
     ExpressionStatement(symbolTable : SymbolTable, node: Node) :string {
@@ -233,6 +260,15 @@ export class Assemble {
                 output+=this.noop(symbolTable, node);
             } else if (node.kind == SyntaxKind.NumberKeyword) {
                 output+=this.noop(symbolTable, node);
+                symbolTable.insert(identifier, SymbolType.NUMBER)
+            }  else if (node.kind == SyntaxKind.AnyKeyword) {
+                output+=this.noop(symbolTable, node);
+                symbolTable.insert(identifier, SymbolType.NUMBER)
+            }else if (node.kind == SyntaxKind.TrueKeyword) {
+                output+="1";
+                symbolTable.insert(identifier, SymbolType.NUMBER)
+            }else if (node.kind == SyntaxKind.FalseKeyword) {
+                output+="0";
                 symbolTable.insert(identifier, SymbolType.NUMBER)
             } else if (node.kind == SyntaxKind.StringKeyword) {
                 output+=this.noop(symbolTable, node);
@@ -333,9 +369,24 @@ export class Assemble {
             } else if (node.kind == SyntaxKind.PlusToken 
                 || node.kind == SyntaxKind.AsteriskToken
                 || node.kind == SyntaxKind.MinusToken
-                || node.kind == SyntaxKind.SlashToken) {
+                || node.kind == SyntaxKind.SlashToken
+                || node.kind == SyntaxKind.EqualsEqualsToken
+                || node.kind == SyntaxKind.EqualsEqualsEqualsToken
+                || node.kind == SyntaxKind.GreaterThanToken
+                || node.kind == SyntaxKind.AmpersandAmpersandToken
+                || node.kind == SyntaxKind.BarBarToken 
+                || node.kind == SyntaxKind.FirstBinaryOperator ) {
                     operator = node.getText()
-            } else if (node.kind == SyntaxKind.ParenthesizedExpression) {
+                    if(operator=="==="){
+                        operator = "=="
+                    }
+            }  else if (node.kind == SyntaxKind.BinaryExpression) {
+                let binExpOutput = this.BinaryExpression(symbolTable, node)
+                if(!binExpOutput.isNumeric){
+                    hasStringLiteral = true;
+                }
+                operands.push(binExpOutput)
+            }else if (node.kind == SyntaxKind.ParenthesizedExpression) {
                 let parenOutput = this.ParenthesizedExpression(symbolTable, node)
                 if(!parenOutput.isNumeric){
                     hasStringLiteral = true;
@@ -349,7 +400,6 @@ export class Assemble {
         let openParen = "$(("
         let closeParen = "))"
 
-        console.log("operands",operands)
         if(hasStringLiteral){
             operator=""
             openParen = ""
@@ -377,7 +427,7 @@ export class Assemble {
         let childNodes = node.getChildren();
         for (let i = 0; i < childNodes.length; i++) {
             let node = childNodes[i];
-            if (node.kind == SyntaxKind.LetKeyword) {
+            if (node.kind == SyntaxKind.LetKeyword || node.kind == SyntaxKind.VarKeyword) {
                output += this.LetKeyword(symbolTable, node)
             } else if (node.kind == SyntaxKind.SyntaxList) {
                 output += AssembledOutput.flatten(this.SyntaxList(symbolTable, node))
