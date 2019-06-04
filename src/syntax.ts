@@ -22,8 +22,12 @@ export class AssembledOutput{
         this.children.push(assembledOutput);
     }
 
-    pop(){
-        this.children.pop()
+    pop() :AssembledOutput{
+        return this.children.pop()
+    }
+
+    peek():AssembledOutput{
+        return this.children[this.children.length-1]
     }
 
     flattenOutput(){
@@ -105,7 +109,7 @@ export class Assemble {
             } else if (node.kind == SyntaxKind.StringLiteral) {
                 output.push(this.StringLiteral(symbolTable, node))
             }  else if (node.kind == SyntaxKind.FirstLiteralToken) {
-                output.push(new AssembledOutput(SyntaxKind.FirstLiteralToken,this.FirstLiteralToken(symbolTable, node)))
+                output.push(this.FirstLiteralToken(symbolTable, node))
             }  else if (node.kind == SyntaxKind.CommaToken) {
                 output.push(new AssembledOutput(SyntaxKind.CommaToken,this.CommaToken(symbolTable, node)))
             }else if (node.kind == SyntaxKind.VariableDeclaration) {
@@ -119,6 +123,11 @@ export class Assemble {
         return output;
     }
 
+    IdentifierAccess(symbolTable : SymbolTable, node: Node) :AssembledOutput {
+        return new AssembledOutput(SyntaxKind.Identifier,"$"+node.getText())
+
+    }
+
     Identifier(symbolTable : SymbolTable, node: Node) :string {
         return `${node.getText()}`
     }
@@ -127,8 +136,8 @@ export class Assemble {
        return new AssembledOutput(SyntaxKind.StringLiteral,node.getText())
     }
 
-    FirstLiteralToken(symbolTable : SymbolTable, node: Node) :string {
-        return node.getText()
+    FirstLiteralToken(symbolTable : SymbolTable, node: Node) :AssembledOutput {
+        return new AssembledOutput(SyntaxKind.StringLiteral,node.getText())
     }
 
     CommaToken(symbolTable : SymbolTable, node: Node) :string {
@@ -306,7 +315,7 @@ export class Assemble {
 
         let assembledOutput = new AssembledOutput(SyntaxKind.BinaryExpression,"");
         let operator = "";
-        let operands=[]
+        let operands :AssembledOutput[]=[]
         let hasStringLiteral = false;
         let childNodes = node.getChildren();
         for (let i = 0; i < childNodes.length; i++) {
@@ -315,11 +324,11 @@ export class Assemble {
                 if(symbolTable.lookup(node.getText())==SymbolType.STRING){
                     hasStringLiteral = true;
                 }
-                operands.push("$"+this.Identifier(symbolTable, node))
+                operands.push(this.IdentifierAccess(symbolTable, node))
             } else if (node.kind == SyntaxKind.FirstLiteralToken) {
-                operands.push(node.getText())
+                operands.push(this.FirstLiteralToken(symbolTable,node))
             }else if (node.kind == SyntaxKind.StringLiteral) {
-                operands.push(node.getText())
+                operands.push(this.StringLiteral(symbolTable,node))
                 hasStringLiteral = true;
             } else if (node.kind == SyntaxKind.PlusToken 
                 || node.kind == SyntaxKind.AsteriskToken
@@ -331,7 +340,7 @@ export class Assemble {
                 if(!parenOutput.isNumeric){
                     hasStringLiteral = true;
                 }
-                operands.push(parenOutput.flattenOutput())
+                operands.push(parenOutput)
             } else {
                 this.unhandledToken(symbolTable, node)
             }
@@ -339,17 +348,26 @@ export class Assemble {
 
         let openParen = "$(("
         let closeParen = "))"
+
+        console.log("operands",operands)
         if(hasStringLiteral){
             operator=""
             openParen = ""
             closeParen = ""
             assembledOutput.isNumeric = false;
+            if(operands[0].isNumeric && operands[0].peek().kind == SyntaxKind.CloseParenToken){
+                operands[0].pop(); //remove ")"
+                let val = operands[0].pop(); //get value
+                operands[0].pop(); // remove "("
+                operands[0].push(val);
+            }
+
 
         }else{
             assembledOutput.isNumeric = true;
             operator=` ${operator} `;
         }
-        assembledOutput.output = openParen+operands[0]+operator+operands[1]+closeParen;
+        assembledOutput.output = openParen+operands[0].flattenOutput()+operator+operands[1].flattenOutput()+closeParen;
 
         return assembledOutput;
     }

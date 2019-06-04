@@ -18,4 +18,4 @@ let strLitIdentifier = "abc"
 
 
 let a3 = a + ((2*3)+strLitIdentifier)
-console.log(a2)
+console.log(a3)
