@@ -42,10 +42,11 @@ export function delint0(sourceFile: ts.SourceFile) {
   delintNode0("", sourceFile);
 
   function delintNode0(space: string, node: ts.Node) {
-    console.log(space + SyntaxKind[node.kind]+" "+node.getText());
+    console.log(space + `(${space.length}) ` +SyntaxKind[node.kind]+" "+node.getText());
 
     node.getChildren().map(child => {
-      delintNode0(space + "-", child);
+      let sp = space + "-"
+      delintNode0(sp, child);
     })
   }
 }

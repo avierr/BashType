@@ -1,11 +1,8 @@
 import {
     Node,
-    SyntaxKind,
-    OutputFileType,
-    BinaryExpression
+    SyntaxKind
 } from 'typescript';
 import { GlobalTable } from './GlobalTable';
-import { lookup } from 'dns';
 
 export class AssembledOutput{
     kind : SyntaxKind = null
@@ -26,7 +23,7 @@ export class AssembledOutput{
         return this.children.pop()
     }
 
-    peek():AssembledOutput{
+    peek() :AssembledOutput{
         return this.children[this.children.length-1]
     }
 
@@ -72,6 +69,14 @@ export class SymbolTable{
             }else{
                 return this.parent.lookup(varName);
             }
+        }
+    }
+
+    getIndent(indent = ""){
+        if(this.parent == null){
+            return indent;
+        }else{
+            this.parent.getIndent(indent+" ");
         }
     }
 }
@@ -127,7 +132,6 @@ export class Assemble {
 
     IdentifierAccess(symbolTable : SymbolTable, node: Node) :AssembledOutput {
         return new AssembledOutput(SyntaxKind.Identifier,"$"+node.getText())
-
     }
 
     Identifier(symbolTable : SymbolTable, node: Node) :string {
@@ -146,30 +150,78 @@ export class Assemble {
         return this.noop(symbolTable, node);
     }
 
-    IfStatement(symbolTable : SymbolTable, node: Node) :AssembledOutput {
+    IfStatement(symbolTable : SymbolTable, parent: Node) :AssembledOutput {
         let assembledOutput = new AssembledOutput(SyntaxKind.ParenthesizedExpression,''); 
-        let childNodes = node.getChildren();
-        let openParen = null;
-        let closeParen = null;
-        let binaryExpOut = null;
+        let childNodes = parent.getChildren();
         for (let i = 0; i < childNodes.length; i++) {
             let node = childNodes[i];
             if (node.kind == SyntaxKind.IfKeyword) {
                 assembledOutput.push(this.IfKeyword(symbolTable,node))
+            } else if (node.kind == SyntaxKind.IfStatement) {
+                assembledOutput.push(this.IfStatement(symbolTable, node));
             } else if (node.kind == SyntaxKind.OpenParenToken) {
-                assembledOutput.push(this.OpenParenToken(symbolTable,node))
+                assembledOutput.push(this.ConditionOpenParenToken(symbolTable,node))
             } else if (node.kind == SyntaxKind.CloseParenToken) {
-                assembledOutput.push(this.CloseParenToken(symbolTable,node))
+                assembledOutput.push(this.ConditionCloseParenToken(symbolTable,node))
+                assembledOutput.push(this.ThenStatement(symbolTable,node))
             } else if (node.kind == SyntaxKind.BinaryExpression) {
                 assembledOutput.push(this.BinaryExpression(symbolTable, node));
+            } else if (node.kind == SyntaxKind.PrefixUnaryExpression) {
+                assembledOutput.push(this.PrefixUnaryExpression(symbolTable, node));
+            } else if (node.kind == SyntaxKind.Block) {
+                assembledOutput.push(this.Block(symbolTable, node));
+            } else if (node.kind == SyntaxKind.ElseKeyword) {
+                assembledOutput.push(this.ElseKeyword(symbolTable, node));
+                
+            } else{
+                this.unhandledToken(symbolTable, node)
             }
         }
+
+        assembledOutput.push(this.FiKeyword(symbolTable,parent));
         return assembledOutput;
     }
 
-    IfKeyword(symbolTable : SymbolTable, node: Node) :AssembledOutput {
-        return new AssembledOutput(SyntaxKind.StringLiteral,node.getText()+" ")
+
+
+    Block(symbolTable : SymbolTable, parent: Node) :AssembledOutput {
+        let blockSymbolTable = new SymbolTable(symbolTable);
+        let assembledOutput = new AssembledOutput(SyntaxKind.Block,"")
+        let childNodes = parent.getChildren();
+        for (let i = 0; i < childNodes.length; i++) {
+            let node = childNodes[i];
+            if(node.kind == SyntaxKind.FirstPunctuation || node.kind==SyntaxKind.CloseBraceToken){
+                this.noop(blockSymbolTable,node);
+            }else if(node.kind == SyntaxKind.SyntaxList){
+                assembledOutput.push(this.SyntaxList(blockSymbolTable,node))
+            }else{
+                this.unhandledToken(symbolTable, node)
+            }
+        }
+        return assembledOutput;
+
     }
+
+    FiKeyword(symbolTable : SymbolTable, node: Node) :AssembledOutput {
+        return new AssembledOutput(SyntaxKind.CloseBracketToken,"\nfi\n")
+    }
+
+    IfKeyword(symbolTable : SymbolTable, node: Node) :AssembledOutput {
+        return new AssembledOutput(SyntaxKind.IfKeyword,node.getText()+" ")
+    }
+
+    ElseKeyword(symbolTable : SymbolTable, node: Node) :AssembledOutput {
+        return new AssembledOutput(SyntaxKind.ElseKeyword,"\nelse\n")
+    }
+
+    ExclamationToken(symbolTable : SymbolTable, node: Node) :AssembledOutput {
+        return new AssembledOutput(SyntaxKind.ExclamationToken," ! ")
+    }
+
+    ThenStatement(symbolTable : SymbolTable, node: Node) :AssembledOutput {
+        return new AssembledOutput(SyntaxKind.StringLiteral,"; then \n")
+    }
+
 
     ExpressionStatement(symbolTable : SymbolTable, node: Node) :string {
         let output="";
@@ -339,6 +391,14 @@ export class Assemble {
         return assembledOutput;
     }
 
+    ConditionOpenParenToken(symbolTable : SymbolTable, node: Node) :AssembledOutput {
+        return new AssembledOutput(SyntaxKind.OpenParenToken," [[  ");
+    }
+
+    ConditionCloseParenToken(symbolTable : SymbolTable, node: Node) :AssembledOutput {
+        return new AssembledOutput(SyntaxKind.OpenParenToken," ]] ");
+    }
+
     OpenParenToken(symbolTable : SymbolTable, node: Node) :AssembledOutput {
        return new AssembledOutput(SyntaxKind.OpenParenToken,"(");
     }
@@ -346,6 +406,23 @@ export class Assemble {
     CloseParenToken(symbolTable : SymbolTable, node: Node) :AssembledOutput {
         return new AssembledOutput(SyntaxKind.CloseParenToken,")");
      }
+
+
+    PrefixUnaryExpression(symbolTable : SymbolTable, node: Node) :AssembledOutput {
+        let assembledOutput = new AssembledOutput(SyntaxKind.BinaryExpression,"");
+        let childNodes = node.getChildren();
+        for (let i = 0; i < childNodes.length; i++) {
+            let node = childNodes[i];
+            if (node.kind == SyntaxKind.ExclamationToken) {
+                assembledOutput.push(this.ExclamationToken(symbolTable, node))
+            }else   if (node.kind == SyntaxKind.Identifier) {
+                assembledOutput.push(this.IdentifierAccess(symbolTable, node))
+            } else{
+                this.unhandledToken(symbolTable, node)
+            }
+        }
+        return assembledOutput;
+    }
 
     BinaryExpression(symbolTable : SymbolTable, node: Node) :AssembledOutput {
 
