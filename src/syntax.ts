@@ -134,8 +134,24 @@ export class Assemble {
         return new AssembledOutput(SyntaxKind.Identifier,"$"+node.getText())
     }
 
+    IdentifierFromIdentifierAccess(outputNode : AssembledOutput) :AssembledOutput {
+        if(outputNode.kind != SyntaxKind.Identifier || outputNode.output[0]!="$"){
+            throw new Error("Cannot convert a non-(IdentifierAccess) type to an identifier");
+        }
+        outputNode.output = outputNode.output.substr(1)
+        return outputNode;
+    }
+
     Identifier(symbolTable : SymbolTable, node: Node) :string {
         return `${node.getText()}`
+    }
+
+    TrueKeyword(symbolTable : SymbolTable, node: Node) :AssembledOutput {
+        return new AssembledOutput(SyntaxKind.Identifier,"1")
+    }
+
+    FalseKeyword(symbolTable : SymbolTable, node: Node) :AssembledOutput {
+        return new AssembledOutput(SyntaxKind.Identifier,"0")
     }
 
     StringLiteral(symbolTable : SymbolTable, node: Node) :AssembledOutput {
@@ -168,7 +184,9 @@ export class Assemble {
                 assembledOutput.push(this.BinaryExpression(symbolTable, node));
             } else if (node.kind == SyntaxKind.PrefixUnaryExpression) {
                 assembledOutput.push(this.PrefixUnaryExpression(symbolTable, node));
-            } else if (node.kind == SyntaxKind.Block) {
+            }  else if (node.kind == SyntaxKind.Identifier) {
+                assembledOutput.push(this.IdentifierAccess(symbolTable, node));
+            }else if (node.kind == SyntaxKind.Block) {
                 assembledOutput.push(this.Block(symbolTable, node));
             } else if (node.kind == SyntaxKind.ElseKeyword) {
                 assembledOutput.push(this.ElseKeyword(symbolTable, node));
@@ -232,6 +250,8 @@ export class Assemble {
                 output+=this.CallExpression(symbolTable, node)
             }else if(node.kind == SyntaxKind.SemicolonToken){
                 output+=("\n");
+            }else if(node.kind == SyntaxKind.BinaryExpression){
+                output+= this.BinaryExpression(symbolTable,node).flattenOutput()
             }else{
                 this.unhandledToken(symbolTable, node)
             }
@@ -317,10 +337,10 @@ export class Assemble {
                 output+=this.noop(symbolTable, node);
                 symbolTable.insert(identifier, SymbolType.NUMBER)
             }else if (node.kind == SyntaxKind.TrueKeyword) {
-                output+="1";
+                output+=this.TrueKeyword(symbolTable,node).flattenOutput();
                 symbolTable.insert(identifier, SymbolType.NUMBER)
             }else if (node.kind == SyntaxKind.FalseKeyword) {
-                output+="0";
+                output+=this.FalseKeyword(symbolTable,node).flattenOutput();
                 symbolTable.insert(identifier, SymbolType.NUMBER)
             } else if (node.kind == SyntaxKind.StringKeyword) {
                 output+=this.noop(symbolTable, node);
@@ -392,11 +412,11 @@ export class Assemble {
     }
 
     ConditionOpenParenToken(symbolTable : SymbolTable, node: Node) :AssembledOutput {
-        return new AssembledOutput(SyntaxKind.OpenParenToken," [[  ");
+        return new AssembledOutput(SyntaxKind.OpenParenToken," ((  ");
     }
 
     ConditionCloseParenToken(symbolTable : SymbolTable, node: Node) :AssembledOutput {
-        return new AssembledOutput(SyntaxKind.OpenParenToken," ]] ");
+        return new AssembledOutput(SyntaxKind.OpenParenToken," )) ");
     }
 
     OpenParenToken(symbolTable : SymbolTable, node: Node) :AssembledOutput {
@@ -430,6 +450,7 @@ export class Assemble {
         let operator = "";
         let operands :AssembledOutput[]=[]
         let hasStringLiteral = false;
+        let isAssignment = false;
         let childNodes = node.getChildren();
         for (let i = 0; i < childNodes.length; i++) {
             let node = childNodes[i];
@@ -440,7 +461,11 @@ export class Assemble {
                 operands.push(this.IdentifierAccess(symbolTable, node))
             } else if (node.kind == SyntaxKind.FirstLiteralToken) {
                 operands.push(this.FirstLiteralToken(symbolTable,node))
-            }else if (node.kind == SyntaxKind.StringLiteral) {
+            } else if (node.kind == SyntaxKind.TrueKeyword) {
+                operands.push(this.TrueKeyword(symbolTable,node))
+            } else if (node.kind == SyntaxKind.FalseKeyword) {
+                operands.push(this.FalseKeyword(symbolTable,node))
+            } else if (node.kind == SyntaxKind.StringLiteral) {
                 operands.push(this.StringLiteral(symbolTable,node))
                 hasStringLiteral = true;
             } else if (node.kind == SyntaxKind.PlusToken 
@@ -457,7 +482,10 @@ export class Assemble {
                     if(operator=="==="){
                         operator = "=="
                     }
-            }  else if (node.kind == SyntaxKind.BinaryExpression) {
+            } else if(node.kind == SyntaxKind.FirstAssignment){
+                    operator = node.getText();
+                    isAssignment = true; 
+            } else if (node.kind == SyntaxKind.BinaryExpression) {
                 let binExpOutput = this.BinaryExpression(symbolTable, node)
                 if(!binExpOutput.isNumeric){
                     hasStringLiteral = true;
@@ -477,18 +505,40 @@ export class Assemble {
         let openParen = "$(("
         let closeParen = "))"
 
-        if(hasStringLiteral){
-            operator=""
+        if(hasStringLiteral || isAssignment){
+            
+            //is this a concat operation?
+            if(isAssignment == false && hasStringLiteral == true){
+                operator=""
+            }
             openParen = ""
             closeParen = ""
             assembledOutput.isNumeric = false;
-            if(operands[0].isNumeric && operands[0].peek().kind == SyntaxKind.CloseParenToken){
-                operands[0].pop(); //remove ")"
-                let val = operands[0].pop(); //get value
-                operands[0].pop(); // remove "("
-                operands[0].push(val);
+
+            let removeParensIfNumeric = function(operand : AssembledOutput){
+                if(operand.isNumeric && operand.peek().kind == SyntaxKind.CloseParenToken){
+                    operand.pop(); //remove ")"
+                    let val = operand.pop(); //get value
+                    operand.pop(); // remove "("
+                    operand.push(val);
+                }
+                return operand;
             }
 
+            operands[0] = removeParensIfNumeric(operands[0])
+            operands[1] = removeParensIfNumeric(operands[1])
+
+            //a=4 and not $a=4
+            if(isAssignment && operands[0].kind == SyntaxKind.Identifier){
+                    operands[0] = this.IdentifierFromIdentifierAccess(operands[0])
+            }
+
+            // if(operands[0].isNumeric && operands[0].peek().kind == SyntaxKind.CloseParenToken){
+            //     operands[0].pop(); //remove ")"
+            //     let val = operands[0].pop(); //get value
+            //     operands[0].pop(); // remove "("
+            //     operands[0].push(val);
+            // }
 
         }else{
             assembledOutput.isNumeric = true;
