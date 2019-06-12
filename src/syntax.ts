@@ -23,6 +23,10 @@ export class AssembledOutput{
         return this.children.pop()
     }
 
+    hasChildren() :boolean{
+        return this.children.length > 0;
+    }
+
     peek() :AssembledOutput{
         return this.children[this.children.length-1]
     }
@@ -76,7 +80,7 @@ export class SymbolTable{
         if(this.parent == null){
             return indent;
         }else{
-            this.parent.getIndent(indent+" ");
+            return this.parent.getIndent(indent+"  ");
         }
     }
 }
@@ -109,6 +113,8 @@ export class Assemble {
                 output.push(new AssembledOutput(SyntaxKind.VariableStatement,this.VariableStatement(symbolTable, node)));
             } else if (node.kind == SyntaxKind.IfStatement) {
                 output.push(this.IfStatement(symbolTable, node))
+            }  else if (node.kind == SyntaxKind.WhileStatement) {
+                output.push(this.WhileStatement(symbolTable, node))
             } else if (node.kind == SyntaxKind.ExpressionStatement) {
                 output.push(new AssembledOutput(SyntaxKind.ExpressionStatement,this.ExpressionStatement(symbolTable, node)))
             } else if (node.kind == SyntaxKind.Identifier) {
@@ -166,6 +172,37 @@ export class Assemble {
         return this.noop(symbolTable, node);
     }
 
+    WhileStatement(symbolTable : SymbolTable, parent: Node) :AssembledOutput {
+        let assembledOutput = new AssembledOutput(SyntaxKind.ParenthesizedExpression,''); 
+        let childNodes = parent.getChildren();
+        for (let i = 0; i < childNodes.length; i++) {
+            let node = childNodes[i];
+            if (node.kind == SyntaxKind.WhileKeyword) {
+                assembledOutput.push(this.WhileKeyword(symbolTable,node))
+            } else if (node.kind == SyntaxKind.IfStatement) {
+                assembledOutput.push(this.WhileStatement(symbolTable, node));
+            } else if (node.kind == SyntaxKind.OpenParenToken) {
+                assembledOutput.push(this.ConditionOpenParenToken(symbolTable,node))
+            } else if (node.kind == SyntaxKind.CloseParenToken) {
+                assembledOutput.push(this.ConditionCloseParenToken(symbolTable,node))
+                assembledOutput.push(this.DoStatement(symbolTable,node))
+            } else if (node.kind == SyntaxKind.BinaryExpression) {
+                assembledOutput.push(this.BinaryExpression(symbolTable, node));
+            } else if (node.kind == SyntaxKind.PrefixUnaryExpression) {
+                assembledOutput.push(this.PrefixUnaryExpression(symbolTable, node));
+            }  else if (node.kind == SyntaxKind.Identifier) {
+                assembledOutput.push(this.IdentifierAccess(symbolTable, node));
+            }else if (node.kind == SyntaxKind.Block) {
+                assembledOutput.push(this.Block(symbolTable, node));
+            } else{
+                this.unhandledToken(symbolTable, node)
+            }
+        }
+
+        assembledOutput.push(this.DoneKeyword(symbolTable,parent));
+        return assembledOutput;
+    }
+
     IfStatement(symbolTable : SymbolTable, parent: Node) :AssembledOutput {
         let assembledOutput = new AssembledOutput(SyntaxKind.ParenthesizedExpression,''); 
         let childNodes = parent.getChildren();
@@ -220,20 +257,33 @@ export class Assemble {
 
     }
 
+
+    DoneKeyword(symbolTable : SymbolTable, node: Node) :AssembledOutput {
+        return new AssembledOutput(SyntaxKind.CloseBracketToken,"\n"+symbolTable.getIndent()+"done\n")
+    }
+
     FiKeyword(symbolTable : SymbolTable, node: Node) :AssembledOutput {
-        return new AssembledOutput(SyntaxKind.CloseBracketToken,"\nfi\n")
+        return new AssembledOutput(SyntaxKind.CloseBracketToken,"\n"+symbolTable.getIndent()+"fi\n")
+    }
+
+    WhileKeyword(symbolTable : SymbolTable, node: Node) :AssembledOutput {
+        return new AssembledOutput(SyntaxKind.IfKeyword,symbolTable.getIndent()+node.getText()+" ")
     }
 
     IfKeyword(symbolTable : SymbolTable, node: Node) :AssembledOutput {
-        return new AssembledOutput(SyntaxKind.IfKeyword,node.getText()+" ")
+        return new AssembledOutput(SyntaxKind.IfKeyword,symbolTable.getIndent()+node.getText()+" ")
     }
 
     ElseKeyword(symbolTable : SymbolTable, node: Node) :AssembledOutput {
-        return new AssembledOutput(SyntaxKind.ElseKeyword,"\nelse\n")
+        return new AssembledOutput(SyntaxKind.ElseKeyword,"\n"+symbolTable.getIndent()+"else\n")
     }
 
     ExclamationToken(symbolTable : SymbolTable, node: Node) :AssembledOutput {
         return new AssembledOutput(SyntaxKind.ExclamationToken," ! ")
+    }
+
+    DoStatement(symbolTable : SymbolTable, node: Node) :AssembledOutput {
+        return new AssembledOutput(SyntaxKind.StringLiteral,"; do \n")
     }
 
     ThenStatement(symbolTable : SymbolTable, node: Node) :AssembledOutput {
@@ -242,7 +292,7 @@ export class Assemble {
 
 
     ExpressionStatement(symbolTable : SymbolTable, node: Node) :string {
-        let output="";
+        let output=""+symbolTable.getIndent();
         let childNodes = node.getChildren();
         for (let i = 0; i < childNodes.length; i++) {
             let node = childNodes[i];
@@ -287,7 +337,7 @@ export class Assemble {
         }
 
        if(typeof fnc === 'function'){
-           output = fnc(params)
+           output = fnc(symbolTable, params)
        }
 
         return output;
@@ -516,7 +566,7 @@ export class Assemble {
             assembledOutput.isNumeric = false;
 
             let removeParensIfNumeric = function(operand : AssembledOutput){
-                if(operand.isNumeric && operand.peek().kind == SyntaxKind.CloseParenToken){
+                if(operand.isNumeric &&  operand.hasChildren() && operand.peek().kind == SyntaxKind.CloseParenToken){
                     operand.pop(); //remove ")"
                     let val = operand.pop(); //get value
                     operand.pop(); // remove "("
@@ -545,7 +595,6 @@ export class Assemble {
             operator=` ${operator} `;
         }
         assembledOutput.output = openParen+operands[0].flattenOutput()+operator+operands[1].flattenOutput()+closeParen;
-
         return assembledOutput;
     }
 
@@ -555,7 +604,7 @@ export class Assemble {
         for (let i = 0; i < childNodes.length; i++) {
             let node = childNodes[i];
             if (node.kind == SyntaxKind.LetKeyword || node.kind == SyntaxKind.VarKeyword) {
-               output += this.LetKeyword(symbolTable, node)
+               output += this.LetKeyword(symbolTable, node).flattenOutput()
             } else if (node.kind == SyntaxKind.SyntaxList) {
                 output += AssembledOutput.flatten(this.SyntaxList(symbolTable, node))
             } else {
@@ -565,8 +614,12 @@ export class Assemble {
         return output;
     }
 
-    LetKeyword(symbolTable : SymbolTable, node: Node) :string {
-        return this.noop(symbolTable, node)
+    LetKeyword(symbolTable : SymbolTable, node: Node) :AssembledOutput {
+        if(symbolTable.parent != null){
+            return new AssembledOutput(SyntaxKind.LetKeyword, symbolTable.getIndent()+"");
+        }else{
+            return new AssembledOutput(SyntaxKind.LetKeyword, symbolTable.getIndent()+"");
+        }
     }
 
     unhandledToken(symbolTable : SymbolTable, node: Node) :string {
