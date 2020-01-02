@@ -5,7 +5,8 @@ let z = 0;
 while(i<10){
     console.log(i);
     i = i + 1;
-    z =i;
+    let z = i;
+    console.log(z)
 }
 
 let j=0;

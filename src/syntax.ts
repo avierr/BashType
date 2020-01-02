@@ -63,6 +63,14 @@ export class SymbolTable{
         this.table[varName] = type
     }
 
+    lookupInHigherScope(varName: string){
+        if(this.parent == null){
+            return "__bt";
+        }else{
+            return this.lookup(varName);
+        }
+    }
+
     lookup(varName: string){
 
         if(this.table.hasOwnProperty(varName)){
