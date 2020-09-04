@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
+    <title>editorbashtype</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="assets/css/Navigation-with-Button.css">
+    <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+
+<body>
+    <div class="container-fluid">
+        <nav class="navbar navbar-light navbar-expand-md navigation-clean-button">
+            <div class="container"><a class="navbar-brand" href="#">BashType</a><button data-toggle="collapse" class="navbar-toggler" data-target="#navcol-1"><span class="sr-only">Toggle navigation</span><span class="navbar-toggler-icon"></span></button>
+                <div class="collapse navbar-collapse"
+                    id="navcol-1">
+                    <ul class="nav navbar-nav mr-auto">
+                        <li class="nav-item" role="presentation"></li>
+                        <li class="nav-item" role="presentation"></li>
+                        <li class="nav-item dropdown"><a class="dropdown-toggle nav-link" data-toggle="dropdown" aria-expanded="false" href="#">Examples&nbsp;</a>
+                            <div class="dropdown-menu" role="menu"><a class="dropdown-item" role="presentation" href="#">First Item</a><a class="dropdown-item" role="presentation" href="#">Second Item</a><a class="dropdown-item" role="presentation" href="#">Third Item</a></div>
+                        </li>
+                    </ul><span class="navbar-text actions"> <a class="btn btn-light action-button" role="button" href="#">Github</a></span></div>
+            </div>
+        </nav>
+        <div class="row">
+            <div class="col-md-6" id="editor"></div>
+            <div class="col-md-6" id="output"></div>
+        </div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js" ></script>
+    <script src="bundle.js"></script>
+    <script>
+        let output = ace.edit("output");
+        output.setTheme("ace/theme/monokai");
+        output.session.setMode("ace/mode/sh");
+
+        let editor = ace.edit("editor");
+        editor.setTheme("ace/theme/monokai");
+        editor.on("change", function(e){
+            setTimeout(function () {
+               let bashTxt =  BashType.transpile(editor.getValue());
+               output.setValue(bashTxt,-1) // moves cursor to the start
+
+            }, 500);
+        });
+        editor.session.setMode("ace/mode/javascript");
+
+    </script>
+
+<!--    <script type="module">-->
+<!--        import * as transpiler from './build/index.js'-->
+<!--        console.log(transpiler);-->
+<!--    </script>-->
+</body>
+
+</html>

@@ -61,3 +61,7 @@ typings/
 .next
 
 build
+
+.idea
+*.iml
+.cache
