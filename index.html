@@ -29,7 +29,12 @@
                                 <a class="dropdown-item" role="presentation" href="#" onclick="loadEx('extra/richprint.ts')">Extras | Rich Print</a>
                             </div>
                         </li>
-                    </ul><span class="navbar-text actions"> <a class="btn btn-light action-button" role="button" href="#">Github</a></span></div>
+                        <li class="nav-item" role="presentation"><a type="button" class="nav-link" data-toggle="modal" data-target="#exampleModal">
+                            FAQ
+                        </a></li>
+                    </ul>
+<!--                    <span class="navbar-text actions"> <a class="btn btn-light action-button" role="button" href="#">Github</a></span></div>-->
+            </div>
             </div>
         </nav>
         <div class="row">
@@ -58,6 +63,18 @@
         let previouslyTypedCode = localStorage.getItem("enteredCode");
         if(previouslyTypedCode!=null){
             editor.setValue(previouslyTypedCode,-1)
+        }else{
+            editor.setValue(`
+ /*
+  ____            _   _____
+ | __ )  __ _ ___| |_|_   _|   _ _ __   ___
+ |  _ \\ / _\` / __| '_ \\| || | | | '_ \\ / _ \\
+ | |_) | (_| \\__ \\ | | | || |_| | |_) |  __/
+ |____/ \\__,_|___/_| |_|_| \\__, | .__/ \\___|
+                           |___/|_|
+ */
+
+        //choose an example from the menu.`,-1)
         }
         editor.session.setMode("ace/mode/javascript");
 
@@ -70,10 +87,46 @@
 
     </script>
 
-<!--    <script type="module">-->
-<!--        import * as transpiler from './build/index.js'-->
-<!--        console.log(transpiler);-->
-<!--    </script>-->
+    <!-- Modal -->
+    <div class="modal fade modal-xl" id="exampleModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="exampleModalLabel">Common Questions</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                   <p>
+                       <b>Oh god! why?</b><br/>
+                       We as developers are used to seeing JS everywhere but we don't often see Bash and everytime we need it,
+                       we re-learn the syntax and forget all about it till we need it again in 3 months. So I thought, why
+                       not make a transpiler which converts an often used language to a not so often used one. Initially I made it for
+                       my own use
+                       but then a few colleagues started using it and then a few more so I ended up creating this basic UI
+                       so anyone could use it online.
+                   </p>
+
+                    <p>
+                        <b>How far is it from being complete?</b><br/>
+                        Well, There are new JS RFCs coming up every day so my target isn't 100% coverage.
+                        The idea here is to make something that is just enough to make it usable so that it helps
+                        you get your work done with Bash. The major TODO here is to support Arrays and I/O.
+                        You might also find that there are some very trivial pieces of code
+                        that might not work, let me know if it is important to you and why and I'll try and make it happen.
+                    </p>
+
+                    <p>
+                        <b>How can I reach you?</b><br/>
+                        you can message on <a target="_blank" href="https://twitter.com/filedotavi">Twitter</a> or
+                        <a href="https://www.linkedin.com/in/avinashdsilva/" target="_blank">LinkedIn</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </body>
 
 </html>

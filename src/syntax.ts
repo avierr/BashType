@@ -427,6 +427,9 @@ export class Assemble {
             } else if (node.kind == SyntaxKind.NumberKeyword) {
                 output += this.noop(symbolTable, node);
                 symbolTable.updateVar(identifier, SymbolType.NUMBER)
+            } else if (node.kind == SyntaxKind.BooleanKeyword) {
+                output += this.noop(symbolTable, node);
+                symbolTable.updateVar(identifier, SymbolType.NUMBER)
             } else if (node.kind == SyntaxKind.AnyKeyword) {
                 output += this.noop(symbolTable, node);
                 symbolTable.updateVar(identifier, SymbolType.NUMBER)
