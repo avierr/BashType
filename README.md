@@ -5,7 +5,7 @@ TypeScript/JS to Bash (work in progress)
 Dev:
 
 ````
-npm run c
+npm run cx
 ````
 
 in another terminal tab:

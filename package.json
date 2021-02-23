@@ -6,6 +6,7 @@
   "scripts": {
     "c": "tsc src/index.ts --target ES2015  --module es2020 --moduleResolution node --watch --outDir build",
     "cx": "webpack-dev-server",
+    "cxb": "webpack ",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",

@@ -48,35 +48,68 @@ export class SymbolTable {
 
     parent: SymbolTable = null;
     table = {};
+    height : number = 0;
 
     constructor(parent: SymbolTable) {
         this.parent = parent;
+        if(parent!=null) {
+            this.height = parent.height + 1
+        }
     }
 
-    insert(varName: string, type: SymbolType) {
+    updateVar(varName: string, type: SymbolType) {
         if (varName == null) {
             throw new Error("varName is null");
         }
-        this.table[varName] = type
+        this.table[varName] = {type: type, name: varName }
     }
 
-    lookupInHigherScope(varName: string) {
-        if (this.parent == null) {
-            return "__bt";
-        } else {
-            return this.lookup(varName);
+    insertVar(varName: string, type: SymbolType) {
+        if (varName == null) {
+            throw new Error("varName is null");
+        }
+        let result = this.lookupInHigherScope(this.parent,varName);
+        if (result!=null && result < this.height) {
+            this.table[varName] = {type: type, name: `__BT_${this.height}_${varName}` }
+            console.log("inserted", this.table)
+        }else {
+            this.table[varName] = {type: type, name: varName }
         }
     }
 
-    lookup(varName: string) {
+    lookupInHigherScope(parentNode : SymbolTable, varName: string) {
+        if (parentNode == null) {
+            return null;
+        } else {
+            if(parentNode.table.hasOwnProperty(varName)){
+                return parentNode.height
+            }else {
+                return this.lookupInHigherScope(parentNode.parent, varName);
+            }
+        }
+    }
+
+    lookUpName(varName: string){
+        if (this.table.hasOwnProperty(varName)) {
+            return this.table[varName].name;
+        } else {
+            if (this.parent == null) {
+                return varName;
+            } else {
+                return this.parent.lookUpName(varName);
+            }
+        }
+    }
+
+    lookupType(varName: string) {
 
         if (this.table.hasOwnProperty(varName)) {
-            return this.table[varName];
+            return this.table[varName].type;
         } else {
             if (this.parent == null) {
                 return null;
             } else {
-                return this.parent.lookup(varName);
+                return this.parent.lookupType(varName);
             }
         }
     }
@@ -123,7 +156,9 @@ export class Assemble {
             } else if (node.kind == SyntaxKind.ExpressionStatement) {
                 output.push(new AssembledOutput(SyntaxKind.ExpressionStatement, this.ExpressionStatement(symbolTable, node)))
             } else if (node.kind == SyntaxKind.Identifier) {
-                output.push(new AssembledOutput(SyntaxKind.Identifier, this.Identifier(symbolTable, node)))
+                let identifier = this.Identifier(symbolTable, node)
+                identifier = symbolTable.lookUpName(identifier);
+                output.push(new AssembledOutput(SyntaxKind.Identifier, identifier))
             } else if (node.kind == SyntaxKind.StringLiteral) {
                 output.push(this.StringLiteral(symbolTable, node))
             } else if (node.kind == SyntaxKind.FirstLiteralToken) {
@@ -142,7 +177,7 @@ export class Assemble {
     }
 
     IdentifierAccess(symbolTable: SymbolTable, node: Node): AssembledOutput {
-        return new AssembledOutput(SyntaxKind.Identifier, "$" + node.getText())
+        return new AssembledOutput(SyntaxKind.Identifier, "$" + this.Identifier(symbolTable,node))
     }
 
     IdentifierFromIdentifierAccess(outputNode: AssembledOutput): AssembledOutput {
@@ -380,47 +415,52 @@ export class Assemble {
             let node = childNodes[i];
             if (node.kind == SyntaxKind.Identifier) {
                 identifier = this.Identifier(symbolTable, node);
-                symbolTable.insert(identifier, SymbolType.STRING);
+                if(node.parent.kind == SyntaxKind.VariableDeclaration && i==0){ //bcos x=y, x and y both are children of VariableDeclaration
+                    symbolTable.insertVar(identifier, SymbolType.STRING);
+                }else {
+                    symbolTable.updateVar(identifier, SymbolType.STRING);
+                }
+                identifier = symbolTable.lookUpName(identifier);
                 output += identifier;
             } else if (node.kind == SyntaxKind.ColonToken) {
                 output += this.noop(symbolTable, node);
             } else if (node.kind == SyntaxKind.NumberKeyword) {
                 output += this.noop(symbolTable, node);
-                symbolTable.insert(identifier, SymbolType.NUMBER)
+                symbolTable.updateVar(identifier, SymbolType.NUMBER)
             } else if (node.kind == SyntaxKind.AnyKeyword) {
                 output += this.noop(symbolTable, node);
-                symbolTable.insert(identifier, SymbolType.NUMBER)
+                symbolTable.updateVar(identifier, SymbolType.NUMBER)
             } else if (node.kind == SyntaxKind.TrueKeyword) {
                 output += this.TrueKeyword(symbolTable, node).flattenOutput();
-                symbolTable.insert(identifier, SymbolType.NUMBER)
+                symbolTable.updateVar(identifier, SymbolType.NUMBER)
             } else if (node.kind == SyntaxKind.FalseKeyword) {
                 output += this.FalseKeyword(symbolTable, node).flattenOutput();
-                symbolTable.insert(identifier, SymbolType.NUMBER)
+                symbolTable.updateVar(identifier, SymbolType.NUMBER)
             } else if (node.kind == SyntaxKind.StringKeyword) {
                 output += this.noop(symbolTable, node);
-                symbolTable.insert(identifier, SymbolType.STRING)
+                symbolTable.updateVar(identifier, SymbolType.STRING)
             } else if (node.kind == SyntaxKind.FirstAssignment) {
                 output += (node.getText())
             } else if (node.kind == SyntaxKind.FirstLiteralToken) {
                 output += (node.getText());
-                symbolTable.insert(identifier, SymbolType.NUMBER)
+                symbolTable.updateVar(identifier, SymbolType.NUMBER)
             } else if (node.kind == SyntaxKind.StringLiteral) {
                 output += AssembledOutput.flatten(this.StringLiteral(symbolTable, node));
-                symbolTable.insert(identifier, SymbolType.STRING)
+                symbolTable.updateVar(identifier, SymbolType.STRING)
             } else if (node.kind == SyntaxKind.BinaryExpression) {
                 let binExpOutput = this.BinaryExpression(symbolTable, node);
                 if (binExpOutput.isNumeric) {
-                    symbolTable.insert(identifier, SymbolType.NUMBER)
+                    symbolTable.updateVar(identifier, SymbolType.NUMBER)
                 } else {
-                    symbolTable.insert(identifier, SymbolType.STRING)
+                    symbolTable.updateVar(identifier, SymbolType.STRING)
                 }
                 output += binExpOutput.flattenOutput();
             } else if (node.kind == SyntaxKind.ParenthesizedExpression) {
                 let parenExpOutput = this.ParenthesizedExpression(symbolTable, node);
                 if (parenExpOutput.isNumeric) {
-                    symbolTable.insert(identifier, SymbolType.NUMBER)
+                    symbolTable.updateVar(identifier, SymbolType.NUMBER)
                 } else {
-                    symbolTable.insert(identifier, SymbolType.STRING)
+                    symbolTable.updateVar(identifier, SymbolType.STRING)
                 }
                 output += parenExpOutput.flattenOutput();
             } else {
@@ -509,7 +549,7 @@ export class Assemble {
         for (let i = 0; i < childNodes.length; i++) {
             let node = childNodes[i];
             if (node.kind == SyntaxKind.Identifier) {
-                if (symbolTable.lookup(node.getText()) == SymbolType.STRING) {
+                if (symbolTable.lookupType(node.getText()) == SymbolType.STRING) {
                     hasStringLiteral = true;
                 }
                 operands.push(this.IdentifierAccess(symbolTable, node))
@@ -529,6 +569,8 @@ export class Assemble {
                 || node.kind == SyntaxKind.EqualsEqualsToken
                 || node.kind == SyntaxKind.EqualsEqualsEqualsToken
                 || node.kind == SyntaxKind.GreaterThanToken
+                || node.kind == SyntaxKind.GreaterThanEqualsToken
+                || node.kind == SyntaxKind.LessThanEqualsToken
                 || node.kind == SyntaxKind.AmpersandAmpersandToken
                 || node.kind == SyntaxKind.BarBarToken
                 || node.kind == SyntaxKind.FirstBinaryOperator) {

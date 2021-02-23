@@ -7,10 +7,16 @@ import { GlobalTable } from './GlobalTable';
 GlobalTable.registerClass(Console);
 
 let code = `
- let a :number =1 
- let b=1;
- let c = (a+(b*2));
- console.log(c,"d",1);
+let i = 0;
+let z = 0;
+
+while(i<10){
+    console.log(i);
+    i = i + 1;
+    let z = i;
+    console.log(z)
+}
+console.log(z)
 `
 
 

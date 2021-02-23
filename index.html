@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
-    <title>editorbashtype</title>
+    <title>BashType | Editor </title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.5.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="assets/css/Navigation-with-Button.css">
     <link rel="stylesheet" href="assets/css/styles.css">
@@ -20,7 +20,14 @@
                         <li class="nav-item" role="presentation"></li>
                         <li class="nav-item" role="presentation"></li>
                         <li class="nav-item dropdown"><a class="dropdown-toggle nav-link" data-toggle="dropdown" aria-expanded="false" href="#">Examples&nbsp;</a>
-                            <div class="dropdown-menu" role="menu"><a class="dropdown-item" role="presentation" href="#">First Item</a><a class="dropdown-item" role="presentation" href="#">Second Item</a><a class="dropdown-item" role="presentation" href="#">Third Item</a></div>
+                            <div class="dropdown-menu" role="menu">
+                                <a class="dropdown-item" role="presentation" href="#" onclick="loadEx('arithmetic/basic.ts')">Basic Arithmetic</a>
+                                <a class="dropdown-item" role="presentation" href="#" onclick="loadEx('string/basicStrings.ts')">Basic Strings</a>
+                                <a class="dropdown-item" role="presentation" href="#" onclick="loadEx('branch/ifelse.ts')">Branch | if-else</a>
+                                <a class="dropdown-item" role="presentation" href="#" onclick="loadEx('loop/while.ts')">Loops | while</a>
+                                <a class="dropdown-item" role="presentation" href="#" onclick="loadEx('program/fibonacci.ts')">Program | Fibonacci</a>
+                                <a class="dropdown-item" role="presentation" href="#" onclick="loadEx('extra/richprint.ts')">Extras | Rich Print</a>
+                            </div>
                         </li>
                     </ul><span class="navbar-text actions"> <a class="btn btn-light action-button" role="button" href="#">Github</a></span></div>
             </div>
@@ -42,13 +49,24 @@
         let editor = ace.edit("editor");
         editor.setTheme("ace/theme/monokai");
         editor.on("change", function(e){
+            localStorage.setItem("enteredCode", editor.getValue());
             setTimeout(function () {
                let bashTxt =  BashType.transpile(editor.getValue());
                output.setValue(bashTxt,-1) // moves cursor to the start
-
             }, 500);
         });
+        let previouslyTypedCode = localStorage.getItem("enteredCode");
+        if(previouslyTypedCode!=null){
+            editor.setValue(previouslyTypedCode,-1)
+        }
         editor.session.setMode("ace/mode/javascript");
+
+
+        async function loadEx(location) {
+            let response = await fetch('/tests/'+location);
+            let data =  await response.text();
+            editor.setValue(data,-1)
+        }
 
     </script>
 
