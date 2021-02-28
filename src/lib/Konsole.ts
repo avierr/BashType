@@ -1,16 +1,16 @@
 import {AssembledOutput, SymbolTable} from "../syntax";
 import {SyntaxKind} from "typescript";
 
-export class Console {
+export class Konsole {
 
     static log(symbolTable: SymbolTable, args: AssembledOutput[]) {
         let statement = symbolTable.getIndent() + "echo ";
-        return Console.addArgs(args, statement);
+        return Konsole.addArgs(args, statement);
     }
 
     static printf(symbolTable: SymbolTable, args: AssembledOutput[]) {
         let statement = symbolTable.getIndent() + "printf ";
-        return Console.addArgs(args, statement);
+        return Konsole.addArgs(args, statement);
     }
 
     //adapted from: https://github.com/nathanstilwell/color-logger
@@ -19,10 +19,10 @@ export class Console {
         let reset = `${escape}0m`;
         let treatment = `${escape}`;
         let text = args[0];
-        let formatAdditions = Console.getFormatInstruction(args[1].flattenOutput())
-        let fontColors = (Console.getTextColor(args[2].flattenOutput()))
+        let formatAdditions = Konsole.getFormatInstruction(args[1].flattenOutput())
+        let fontColors = (Konsole.getTextColor(args[2].flattenOutput()))
         formatAdditions = formatAdditions.concat(fontColors)
-        formatAdditions = formatAdditions.concat(Console.getBgColor(args[3].flattenOutput()))
+        formatAdditions = formatAdditions.concat(Konsole.getBgColor(args[3].flattenOutput()))
         treatment = `"${treatment}${formatAdditions.join(";")}m%s${reset}"`
         if (text.kind == SyntaxKind.Identifier) {
             treatment = `${treatment} "$${text.flattenOutput()}"`
@@ -38,7 +38,7 @@ export class Console {
         text = text.replaceAll("'","");
         text = text.replaceAll("`","");
         let possibleColors  = []
-        let possibleTextColor = Console.textColors[text];
+        let possibleTextColor = Konsole.textColors[text];
         if (typeof possibleTextColor != 'undefined') {
              possibleColors.push(possibleTextColor);
         }
@@ -51,7 +51,7 @@ export class Console {
         text = text.replaceAll("'","");
         text = text.replaceAll("`","");
         let possibleColors  = []
-        let possibleBackgroundColor = Console.backgroundColors[text];
+        let possibleBackgroundColor = Konsole.backgroundColors[text];
         if (typeof possibleBackgroundColor != 'undefined') {
             possibleColors.push(possibleBackgroundColor);
         }
@@ -66,7 +66,7 @@ export class Console {
         let formats = text.split(";");
         let outputFormats = [];
         formats.map((format)=>{
-            let possibleEmphasis = Console.emphasis[format.trim()];
+            let possibleEmphasis = Konsole.emphasis[format.trim()];
             if (typeof possibleEmphasis != 'undefined') {
                 outputFormats.push(possibleEmphasis)
             }

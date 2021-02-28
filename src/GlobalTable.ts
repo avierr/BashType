@@ -19,7 +19,7 @@ export class GlobalTable{
     static registerClass(classParam){
             let name = classParam.name
 
-            if(name == "Console"){ //special case for console.
+            if(name == "Konsole"){ //special case for console.
                 name = "console";
             }
 

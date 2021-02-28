@@ -1,10 +1,10 @@
 import * as ts from 'typescript';
 import {SyntaxKind} from 'typescript';
 import {Assemble} from './syntax';
-import {Console} from './lib/Console'
+import {Konsole} from './lib/Konsole'
 import { GlobalTable } from './GlobalTable';
 
-GlobalTable.registerClass(Console);
+GlobalTable.registerClass(Konsole);
 
 let code = `
 let i = 0;
